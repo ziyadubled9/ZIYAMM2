@@ -11,4 +11,4 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/ziyadubled9/ZIYAMM2/r
 
 ## Developers
 
-### Creator: [Ziya](https://discord.gg/ht94Vt9eGn)
+### Creator: [Ziya](https://discord.gg/roblox)
